@@ -1,9 +1,7 @@
 /**
  * Cliente do portal staff.ligatech.com.br
  *
- * A API "oficial" (accreditation.ligatechapis.com) não aceita os CPFs da
- * Livemode em make_pre_credential — retorna 'not part of organization'.
- * Mas a credenciadora consegue fazer manualmente pelo portal: é um Django
+ * A credenciadora faz o credenciamento manualmente pelo portal: é um Django
  * com login email+senha. Esse cliente automatiza esse fluxo.
  *
  * Fluxo:
@@ -326,7 +324,7 @@ export class PortalClient {
     if (!personId) {
       return {
         status: "person_not_found",
-        message: "Pessoa não apareceu na busca por CPF nessa zona (não cadastrada na Livemode pra essa zona)",
+        message: "Pessoa não apareceu na busca por CPF nessa zona (não cadastrada pela empresa pra essa zona)",
       };
     }
     if (!csrf) {
