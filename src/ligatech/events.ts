@@ -8,6 +8,7 @@ export interface FoundEvent {
   id: number;
   name: string;
   date?: string;
+  championship?: string;
 }
 
 function normalize(s: string): string {
@@ -55,12 +56,25 @@ function sameDay(a: string, b: string): boolean {
 export interface FindEventCriteria {
   match: string;
   date: string;
+  /** Nome do campeonato na planilha (ex: "Paulistão A1") — desempata quando
+   *  o mesmo confronto acontece no mesmo dia em mais de uma categoria. */
+  competition?: string;
+}
+
+/** Quantas palavras do campeonato da planilha aparecem no campeonato do portal. */
+function competitionScore(sheetComp: string, portalComp?: string): number {
+  if (!sheetComp || !portalComp) return 0;
+  const tokens = normalize(sheetComp).split(" ").filter((t) => t.length > 1);
+  const hay = normalize(portalComp);
+  return tokens.filter((t) => hay.includes(t)).length;
 }
 
 /**
  * Procura o evento que casa com confronto+data da planilha.
  * Filtra a listagem do portal pelo nome de cada time; se nada vier,
- * varre as primeiras páginas sem filtro.
+ * varre as primeiras páginas sem filtro. Havendo mais de um candidato
+ * (mesmo confronto em categorias diferentes), prefere o de campeonato
+ * mais parecido com o da planilha.
  */
 export async function findEventByMatch(
   criteria: FindEventCriteria,
@@ -87,6 +101,9 @@ export async function findEventByMatch(
     });
     if (matches.length > 0) {
       matches.sort((a, b) => {
+        const sa = competitionScore(criteria.competition ?? "", a.championship);
+        const sb = competitionScore(criteria.competition ?? "", b.championship);
+        if (sa !== sb) return sb - sa; // campeonato mais parecido primeiro
         const da = parseFlexibleDate(a.date ?? "")?.getTime() ?? Infinity;
         const db = parseFlexibleDate(b.date ?? "")?.getTime() ?? Infinity;
         return da - db;

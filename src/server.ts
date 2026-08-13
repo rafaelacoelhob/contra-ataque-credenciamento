@@ -674,7 +674,10 @@ app.get("/", async (_req: Request, res: Response) => {
             resolvedEventId = data.event.id;
             eventIdField.style.display = 'none';
             autoEventNotice.style.display = 'block';
-            autoEventNotice.textContent = '✓ Evento #' + data.event.id + ' identificado automaticamente';
+            var evDesc = data.event.name || '';
+            if (data.event.championship) evDesc += ' · ' + data.event.championship;
+            if (data.event.date) evDesc += ' · ' + data.event.date;
+            autoEventNotice.textContent = '✓ Evento #' + data.event.id + ' — ' + evDesc + ' (confira se é o jogo certo!)';
           } else {
             eventIdField.style.display = 'block';
             autoEventNotice.style.display = 'none';
@@ -967,6 +970,33 @@ app.post("/api/event-info", upload.single("file"), async (req: Request, res: Res
   }
 });
 
+/**
+ * Diagnóstico: mostra o que o portal devolve pra um evento+zona+CPF usando o
+ * login configurado. Uso (no navegador):
+ *   /api/debug/zona?eventId=19531&zona=zona-roxa&cpf=000.000.000-00
+ */
+app.get("/api/debug/zona", async (req: Request, res: Response) => {
+  const eventId = Number(req.query.eventId);
+  const zona = String(req.query.zona ?? "").trim();
+  const cpf = String(req.query.cpf ?? "").trim();
+  if (!eventId || !zona || !cpf) {
+    return res.status(400).json({ error: "Use ?eventId=...&zona=...&cpf=..." });
+  }
+  const { getPortal } = await import("./ligatech/accreditation");
+  const portal = getPortal();
+  if (!portal) return res.status(500).json({ error: "Credenciais do portal não configuradas" });
+
+  try {
+    const zonas = await portal.listZonas(eventId);
+    const zoneId = await portal.resolveZoneId(eventId, zona);
+    const check = zoneId ? await portal.checkCredencial(eventId, zoneId, cpf) : null;
+    const raw = zoneId ? await portal.debugZonaPage(eventId, zoneId, cpf) : null;
+    res.json({ eventId, zonasDoEvento: zonas, zonaResolvida: zoneId, resultadoCheck: check, analiseHtml: raw });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? String(e) });
+  }
+});
+
 app.post("/api/preview-sheet", upload.single("file"), async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: "Arquivo .xlsx obrigatório" });
   try {
@@ -984,7 +1014,11 @@ app.post("/api/find-event", upload.single("file"), async (req: Request, res: Res
     if (!info.match || !info.date) {
       return res.json({ event: null, info, reason: "match_or_date_missing" });
     }
-    const event = await findEventByMatch({ match: info.match, date: info.date });
+    const event = await findEventByMatch({
+      match: info.match,
+      date: info.date,
+      competition: info.name,
+    });
     res.json({ event, info });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Erro ao buscar evento" });

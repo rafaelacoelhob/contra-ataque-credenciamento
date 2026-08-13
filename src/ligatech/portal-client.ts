@@ -238,12 +238,14 @@ export class PortalClient {
     const html = String(page.data ?? "");
     const personId = extractPersonId(html, eventId, zoneId) ?? undefined;
 
-    // Procura o bloco da pessoa pra ler badge de status. O CPF buscado
-    // aparece na seção dos resultados (não no input/breadcrumb).
+    // Procura o bloco da pessoa pra ler badge de status. IMPORTANTE: o campo
+    // de busca da página ecoa o CPF pesquisado (<input value="...">) — tira
+    // os inputs antes de procurar, senão toda busca "encontra" a pessoa.
+    const htmlSemInputs = html.replace(/<input[^>]*>/gi, "");
     const cpfDigits = cpfClean.replace(/\D/g, "");
     const hasPerson =
-      html.includes(cpfClean) ||
-      (cpfDigits.length === 11 && html.replace(/\D/g, "").includes(cpfDigits));
+      htmlSemInputs.includes(cpfClean) ||
+      (cpfDigits.length === 11 && htmlSemInputs.replace(/\D/g, "").includes(cpfDigits));
 
     if (!hasPerson) {
       return {
@@ -253,7 +255,10 @@ export class PortalClient {
     }
 
     // Distingue credenciado (FPF aprovou) de pré-credenciado (só pedido)
-    if (/Credenciad[ao] à esta zona/i.test(html) && !/Pré-?Credenciado/i.test(html)) {
+    if (
+      (/Credenciad[ao] à esta zona/i.test(html) || /Credencial Aprovada/i.test(html)) &&
+      !/Pré-?Credenciado/i.test(html)
+    ) {
       return { status: "credenciado", message: "Aprovado pela FPF", personId };
     }
     if (
@@ -270,9 +275,40 @@ export class PortalClient {
         personId,
       };
     }
+    if (/Credenciad[ao] em outra zona/i.test(html)) {
+      return {
+        status: "nao_solicitado",
+        message: "Consta credenciada em OUTRA zona — conferir a zona da planilha",
+      };
+    }
     return {
       status: "error",
       message: "HTML não casou com nenhum padrão conhecido — verificar manualmente",
+    };
+  }
+
+  /**
+   * Diagnóstico: baixa a página da zona filtrada por CPF e devolve um resumo
+   * do HTML (badges, forms, trecho em volta do CPF) sem expor a página toda.
+   */
+  async debugZonaPage(eventId: number, zoneId: number, cpf: string) {
+    if (!this.loggedIn) await this.login();
+    const cpfClean = cpf.trim();
+    const r = await this.http.get(`/accreditation/evento/${eventId}/zona/${zoneId}/`, {
+      params: { cpf: cpfClean },
+    });
+    const html = String(r.data ?? "");
+    const semInputs = html.replace(/<input[^>]*>/gi, "");
+    const idx = semInputs.indexOf(cpfClean);
+    return {
+      httpStatus: r.status,
+      tamanhoHtml: html.length,
+      cpfApareceForaDoInput: idx >= 0,
+      badges: [...html.matchAll(/badge[^>]*>\s*([^<]{2,50})</g)].map((m) => m[1].trim()).slice(0, 15),
+      formsCredenciar: [...html.matchAll(/action="([^"]*credenciar[^"]*)"/g)].map((m) => m[1]).slice(0, 5),
+      personId: extractPersonId(html, eventId, zoneId),
+      trechoEmVoltaDoCpf:
+        idx >= 0 ? semInputs.slice(Math.max(0, idx - 500), idx + 300).replace(/\s+/g, " ") : null,
     };
   }
 
@@ -424,7 +460,7 @@ function detectAlreadyState(html: string): string | null {
   if (/Pré-?Credenciado à esta zona/i.test(html)) {
     return "Já estava pré-credenciada (aguardando FPF aprovar)";
   }
-  if (/Credenciad[ao] à esta zona/i.test(html)) {
+  if (/Credenciad[ao] à esta zona/i.test(html) || /Credencial Aprovada/i.test(html)) {
     return "Já estava credenciada (aprovada pela FPF)";
   }
   // Badge verde "Credenciado" sem o "Pré-" prefix
