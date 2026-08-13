@@ -61,12 +61,22 @@ export interface FindEventCriteria {
   competition?: string;
 }
 
-/** Quantas palavras do campeonato da planilha aparecem no campeonato do portal. */
+/**
+ * Quantas palavras do campeonato da planilha aparecem no campeonato do portal.
+ * Compara por prefixo pra "Paulistão" casar com "PAULISTA".
+ */
 function competitionScore(sheetComp: string, portalComp?: string): number {
   if (!sheetComp || !portalComp) return 0;
+  const hayTokens = normalize(portalComp).split(" ");
   const tokens = normalize(sheetComp).split(" ").filter((t) => t.length > 1);
-  const hay = normalize(portalComp);
-  return tokens.filter((t) => hay.includes(t)).length;
+  return tokens.filter((t) =>
+    hayTokens.some(
+      (h) =>
+        h === t ||
+        (t.length >= 5 && h.startsWith(t.slice(0, 5))) ||
+        (h.length >= 5 && t.startsWith(h.slice(0, 5))),
+    ),
+  ).length;
 }
 
 /**
