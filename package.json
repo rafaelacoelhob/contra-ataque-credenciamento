@@ -1,0 +1,32 @@
+{
+  "name": "contra-ataque-credenciamento",
+  "version": "1.0.0",
+  "description": "Credenciamento automático Contra Ataque × Ligatech",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "axios-cookiejar-support": "^6.0.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "node-cron": "^3.0.3",
+    "tough-cookie": "^6.0.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^20.14.0",
+    "@types/node-cron": "^3.0.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
