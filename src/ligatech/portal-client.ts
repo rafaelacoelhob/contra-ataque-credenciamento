@@ -281,6 +281,15 @@ export class PortalClient {
         message: "Consta credenciada em OUTRA zona — conferir a zona da planilha",
       };
     }
+    // Pessoa listada como "Não Credenciado" mas SEM botão de credenciar:
+    // o acesso da empresa não tem vaga/permissão pra essa zona.
+    if (/N[ãa]o Credenciado/i.test(html)) {
+      return {
+        status: "nao_solicitado",
+        message:
+          "Aparece na zona como Não Credenciado, mas sem opção de credenciar pro seu acesso — função sem vaga/permissão nessa zona (verificar com a Ligatech/federação)",
+      };
+    }
     return {
       status: "error",
       message: "HTML não casou com nenhum padrão conhecido — verificar manualmente",
@@ -358,6 +367,20 @@ export class PortalClient {
     }
 
     if (!personId) {
+      // Distingue "não está na zona" de "está na zona mas sem botão de
+      // credenciar" (função sem vaga/permissão nessa zona pro seu acesso).
+      const semInputs = html.replace(/<input[^>]*>/gi, "");
+      const cpfDigits = cpfClean.replace(/\D/g, "");
+      const aparece =
+        semInputs.includes(cpfClean) ||
+        (cpfDigits.length === 11 && semInputs.replace(/\D/g, "").includes(cpfDigits));
+      if (aparece) {
+        return {
+          status: "person_not_found",
+          message:
+            "Pessoa está cadastrada na zona, mas SEM botão de credenciar pro seu acesso — a função dela não tem vaga/permissão liberada nessa zona (verificar com a Ligatech/federação)",
+        };
+      }
       return {
         status: "person_not_found",
         message: "Pessoa não apareceu na busca por CPF nessa zona (não cadastrada pela empresa pra essa zona)",
