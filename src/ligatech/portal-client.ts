@@ -259,26 +259,26 @@ export class PortalClient {
       (/Credenciad[ao] à esta zona/i.test(html) || /Credencial Aprovada/i.test(html)) &&
       !/Pré-?Credenciado/i.test(html)
     ) {
-      return { status: "credenciado", message: "Aprovado pela FPF", personId };
+      return { status: "credenciado", message: "Credencial aprovada — tudo certo", personId };
     }
     if (
       /Pré-?Credenciado à esta zona/i.test(html) ||
       /class="[^"]*remove_credential_form[^"]*"/i.test(html) ||
       /(Remover|Cancelar)\s+Solicita/i.test(html)
     ) {
-      return { status: "pre_credenciado", message: "Solicitado, aguardando FPF aprovar", personId };
+      return { status: "pre_credenciado", message: "Pedido já enviado — aguardando a federação aprovar", personId };
     }
     if (personId) {
       return {
         status: "nao_solicitado",
-        message: "Cadastrada na zona, mas ainda sem solicitação de credenciamento",
+        message: "Pronta pra credenciar — é só clicar em Solicitar credenciamento",
         personId,
       };
     }
     if (/Credenciad[ao] em outra zona/i.test(html)) {
       return {
         status: "nao_solicitado",
-        message: "Consta credenciada em OUTRA zona — conferir a zona da planilha",
+        message: "A pessoa está credenciada em OUTRA zona. Confira se a zona na planilha está certa.",
       };
     }
     // Pessoa listada como "Não Credenciado" mas SEM botão de credenciar:
@@ -287,7 +287,7 @@ export class PortalClient {
       return {
         status: "nao_solicitado",
         message:
-          "Aparece na zona como Não Credenciado, mas sem opção de credenciar pro seu acesso — função sem vaga/permissão nessa zona (verificar com a Ligatech/federação)",
+          "A pessoa está no sistema, mas a Ligatech ainda não liberou essa zona pra ela. Peça à Ligatech pra liberar e rode de novo.",
       };
     }
     return {
@@ -378,12 +378,12 @@ export class PortalClient {
         return {
           status: "person_not_found",
           message:
-            "Pessoa está cadastrada na zona, mas SEM botão de credenciar pro seu acesso — a função dela não tem vaga/permissão liberada nessa zona (verificar com a Ligatech/federação)",
+            "A pessoa está no sistema, mas a Ligatech ainda não liberou essa zona pra ela. Peça à Ligatech pra liberar e rode de novo.",
         };
       }
       return {
         status: "person_not_found",
-        message: "Pessoa não apareceu na busca por CPF nessa zona (não cadastrada pela empresa pra essa zona)",
+        message: "Esse CPF não está cadastrado nessa zona. É preciso cadastrar a pessoa no portal da Ligatech primeiro.",
       };
     }
     if (!csrf) {
