@@ -410,8 +410,22 @@ export class PortalClient {
 
     if (submit.status === 302 || submit.status === 303) {
       const loc = String(submit.headers["location"] ?? "");
-      // Após sucesso o portal redireciona pra mesma página de zona com mensagem de sucesso
-      return { status: "success", personId, redirectLocation: loc };
+      // O portal redireciona TAMBÉM quando recusa o pedido (ex: limite de
+      // profissionais do jogo) — o motivo vem numa mensagem na página
+      // seguinte. Então confere se o pedido realmente ficou registrado.
+      const after = await this.http.get(zonePath, { params: { cpf: cpfClean } });
+      const afterHtml = String(after.data ?? "");
+      if (detectAlreadyState(afterHtml)) {
+        return { status: "success", personId, redirectLocation: loc };
+      }
+      const avisos = extractFlashMessages(afterHtml);
+      return {
+        status: "error",
+        message: avisos.length
+          ? `O portal recusou o pedido: ${avisos.join(" | ")}`
+          : "O portal não registrou o pedido — provável limite de vagas/profissionais desse jogo. Confira no portal e fale com a Ligatech.",
+        personId,
+      };
     }
     if (submit.status === 200) {
       // Pode vir 200 com erro embutido no HTML
@@ -497,6 +511,18 @@ function detectAlreadyState(html: string): string | null {
     return "Já tinha solicitação ativa nessa zona";
   }
   return null;
+}
+
+/**
+ * Extrai as mensagens de aviso/erro (alertas) que o portal mostra após um
+ * redirect, ignorando o banner fixo de "Atenção: o simples pedido não
+ * garante...", presente em toda página.
+ */
+function extractFlashMessages(html: string): string[] {
+  return [...html.matchAll(/<div[^>]*class="[^"]*alert[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)]
+    .map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+    .filter((t) => t && !/simples pedido n[ãa]o garante/i.test(t))
+    .map((t) => (t.length > 250 ? t.slice(0, 250) + "…" : t));
 }
 
 function extractFormCsrf(html: string): string | null {

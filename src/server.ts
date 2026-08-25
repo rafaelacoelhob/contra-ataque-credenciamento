@@ -872,7 +872,7 @@ app.get("/", async (_req: Request, res: Response) => {
       }
 
       function statusMeta(s) {
-        if (s === 'success') return { cls: 'success', label: 'Credenciado', icon: '✅' };
+        if (s === 'success') return { cls: 'success', label: 'Solicitado', icon: '✅' };
         if (s === 'credenciado') return { cls: 'success', label: 'Credenciado', icon: '✅' };
         if (s === 'pre_credenciado') return { cls: 'success', label: 'Solicitado', icon: '⏳' };
         if (s === 'nao_solicitado') return { cls: 'warn', label: 'Sem solicitação', icon: '⚠️' };
@@ -907,7 +907,7 @@ app.get("/", async (_req: Request, res: Response) => {
             '<div class="stat warn"><div class="stat-value">' + (log.pessoa_nao_encontrada||0) + '</div><div class="stat-label">Não cadastradas</div></div>' +
             '<div class="stat err"><div class="stat-value">' + (log.erro||0) + '</div><div class="stat-label">Erros</div></div>'
           : '<div class="stat total"><div class="stat-value">' + log.total + '</div><div class="stat-label">Total</div></div>' +
-            '<div class="stat success"><div class="stat-value">' + log.success + '</div><div class="stat-label">Credenciados</div></div>' +
+            '<div class="stat success"><div class="stat-value">' + log.success + '</div><div class="stat-label">Solicitados</div></div>' +
             '<div class="stat warn"><div class="stat-value">' + log.not_found + '</div><div class="stat-label">Não cadastrados</div></div>' +
             '<div class="stat err"><div class="stat-value">' + log.failed + '</div><div class="stat-label">Erros</div></div>';
 
@@ -1217,7 +1217,7 @@ app.post("/api/verify/stream", upload.single("file"), async (req: Request, res: 
 // ── Export .xlsx ─────────────────────────────────────────────────────────────
 
 function statusLabel(s: string): string {
-  if (s === "success") return "Credenciado";
+  if (s === "success") return "Solicitado";
   if (s === "cpf_nao_cadastrado") return "Não cadastrado na Ligatech";
   if (s === "cpf_invalido") return "CPF inválido";
   if (s === "erro_api") return "Erro na API";
