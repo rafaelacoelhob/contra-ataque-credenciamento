@@ -997,6 +997,30 @@ app.get("/api/debug/zona", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Diagnóstico: faz UMA solicitação de credenciamento registrando cada passo.
+ * Uso: /api/debug/solicitar?eventId=19548&zona=zona-vermelha&cpf=000.000.000-00
+ */
+app.get("/api/debug/solicitar", async (req: Request, res: Response) => {
+  const eventId = Number(req.query.eventId);
+  const zona = String(req.query.zona ?? "").trim();
+  const cpf = String(req.query.cpf ?? "").trim();
+  if (!eventId || !zona || !cpf) {
+    return res.status(400).json({ error: "Use ?eventId=...&zona=...&cpf=..." });
+  }
+  const { getPortal } = await import("./ligatech/accreditation");
+  const portal = getPortal();
+  if (!portal) return res.status(500).json({ error: "Credenciais do portal não configuradas" });
+  try {
+    const zoneId = await portal.resolveZoneId(eventId, zona);
+    if (!zoneId) return res.status(400).json({ error: `Zona "${zona}" não encontrada` });
+    const trace = await portal.debugSolicitar(eventId, zoneId, cpf);
+    res.json({ eventId, zoneId, cpf, trace });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? String(e) });
+  }
+});
+
 app.post("/api/preview-sheet", upload.single("file"), async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: "Arquivo .xlsx obrigatório" });
   try {

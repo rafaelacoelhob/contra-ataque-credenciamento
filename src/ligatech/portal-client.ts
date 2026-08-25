@@ -322,6 +322,74 @@ export class PortalClient {
   }
 
   /**
+   * Diagnóstico: executa UMA solicitação registrando cada passo da conversa
+   * com o portal (personId, POST, redirect, mensagens, estado final).
+   */
+  async debugSolicitar(eventId: number, zoneId: number, cpf: string) {
+    if (!this.loggedIn) await this.login();
+    const cpfClean = cpf.trim();
+    const zonePath = `/accreditation/evento/${eventId}/zona/${zoneId}/`;
+    const trace: Record<string, unknown> = {};
+
+    const page = await this.http.get(zonePath, { params: { cpf: cpfClean } });
+    const html = String(page.data ?? "");
+    const personId = extractPersonId(html, eventId, zoneId);
+    const csrf = extractFormCsrf(html);
+    trace.get1 = {
+      status: page.status,
+      personId,
+      temCsrf: !!csrf,
+      estadoAntes: detectAlreadyState(html),
+      avisosAntes: extractFlashMessages(html),
+    };
+    if (!personId || !csrf) return trace;
+
+    const params = new URLSearchParams();
+    params.set("csrfmiddlewaretoken", csrf);
+    params.set("cpf", cpfClean);
+    const submit = await this.http.post(`${zonePath}credenciar/${personId}/`, params.toString(), {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: `${PORTAL_BASE}${zonePath}?cpf=${encodeURIComponent(cpfClean)}`,
+        Origin: PORTAL_BASE,
+      },
+      maxRedirects: 0,
+      validateStatus: () => true,
+    });
+    const submitBody = String(submit.data ?? "");
+    trace.post = {
+      url: `${zonePath}credenciar/${personId}/`,
+      status: submit.status,
+      location: submit.headers?.["location"] ?? null,
+      avisosNoBody: extractFlashMessages(submitBody),
+      trechoBody: submitBody.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400),
+    };
+
+    // Segue o redirect manualmente pra capturar a flash message da página destino
+    const loc = String(submit.headers?.["location"] ?? "");
+    if (loc) {
+      const dest = await this.http.get(loc.startsWith("http") ? loc : loc);
+      const destHtml = String(dest.data ?? "");
+      trace.paginaDestino = {
+        url: loc,
+        status: dest.status,
+        avisos: extractFlashMessages(destHtml),
+        estado: detectAlreadyState(destHtml),
+      };
+    }
+
+    const after = await this.http.get(zonePath, { params: { cpf: cpfClean } });
+    const afterHtml = String(after.data ?? "");
+    trace.getDepois = {
+      status: after.status,
+      estadoDepois: detectAlreadyState(afterHtml),
+      avisosDepois: extractFlashMessages(afterHtml),
+      aindaTemBotaoCredenciar: !!extractPersonId(afterHtml, eventId, zoneId),
+    };
+    return trace;
+  }
+
+  /**
    * Solicita pré-credencial pra uma pessoa numa zona+evento.
    * @param zoneId  ID numérico da zona (ex: 92155). NÃO é o slug.
    */
