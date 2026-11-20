@@ -79,6 +79,31 @@ function competitionScore(sheetComp: string, portalComp?: string): number {
   ).length;
 }
 
+/** Categoria do campeonato: feminino? quais "Sub-XX"? */
+function category(s: string): { fem: boolean; subs: string[] } {
+  const n = normalize(s);
+  const subs = [...n.matchAll(/\bsub ?((?:\d{2} ?)+)/g)].flatMap((m) => m[1].trim().split(" "));
+  // O portal escreve "FUTEBOL F - 2026" pro feminino
+  const fem = /\b(feminino|feminina|fem|f)\b/.test(n);
+  return { fem, subs };
+}
+
+/**
+ * Pontua se a categoria do jogo do portal bate com a da planilha. Evita pegar
+ * o jogo da base (Sub-15/17...) quando o mesmo confronto cai no mesmo dia do
+ * profissional/feminino — lá não há vaga e o portal recusa tudo.
+ */
+function categoryScore(sheetComp: string, portalComp?: string): number {
+  if (!portalComp) return 0;
+  const s = category(sheetComp);
+  const p = category(portalComp);
+  let score = 0;
+  const subsOk = s.subs.length === 0 ? p.subs.length === 0 : s.subs.some((x) => p.subs.includes(x));
+  if (subsOk) score += 3;
+  if (s.fem === p.fem) score += 2;
+  return score;
+}
+
 /**
  * Procura o evento que casa com confronto+data da planilha.
  * Filtra a listagem do portal pelo nome de cada time; se nada vier,
@@ -111,6 +136,10 @@ export async function findEventByMatch(
     });
     if (matches.length > 0) {
       matches.sort((a, b) => {
+        // 1º categoria (Feminino / Sub-XX), depois palavras do campeonato
+        const ca = categoryScore(criteria.competition ?? "", a.championship);
+        const cb = categoryScore(criteria.competition ?? "", b.championship);
+        if (ca !== cb) return cb - ca;
         const sa = competitionScore(criteria.competition ?? "", a.championship);
         const sb = competitionScore(criteria.competition ?? "", b.championship);
         if (sa !== sb) return sb - sa; // campeonato mais parecido primeiro

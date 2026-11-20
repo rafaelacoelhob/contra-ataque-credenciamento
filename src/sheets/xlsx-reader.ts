@@ -39,7 +39,7 @@ export interface CredentialInputRow {
 }
 
 function zoneToSlug(raw: string): string {
-  return raw
+  const slug = raw
     .trim()
     .toLowerCase()
     .normalize("NFD")
@@ -47,6 +47,9 @@ function zoneToSlug(raw: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+  // "vermelha" (sem "zona") \u2192 "zona-vermelha", igual ao nome no portal
+  if (slug && !/^\d+$/.test(slug) && !slug.startsWith("zona-")) return `zona-${slug}`;
+  return slug;
 }
 
 function normalizeCpf(raw: string): string | null {
@@ -93,7 +96,21 @@ function findLabeled(rows: string[][], label: RegExp, maxRows = 20): string {
 export function readEventInfoFromBuffer(buffer: Buffer): EventInfo {
   const rows = readAllRows(getSheet(buffer));
 
-  const transmissao = findLabeled(rows, /Transmiss[ãa]o:\s*(.+)/i);
+  // Âncora no início: "Data da Transmissão:" não pode contar como "Transmissão:"
+  let transmissao = findLabeled(rows, /^\s*Transmiss[ãa]o:\s*(.+)/i);
+  // Algumas planilhas não têm o rótulo "Transmissão:" — a linha vem direto
+  // ("4ª COPA SÃO PAULO DE FUTEBOL F - PETROBRAS - 2026 - A x B / C x D").
+  // Pega a 1ª célula do topo com " x " que não seja outro rótulo.
+  if (!transmissao) {
+    outer: for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      for (const cell of rows[i]) {
+        if (/\s+x\s+/i.test(cell) && !/^(data|local|hor[áa]rio|opera|coordena)/i.test(cell)) {
+          transmissao = cell.trim();
+          break outer;
+        }
+      }
+    }
+  }
   let name = transmissao;
   let match = "";
   // Separa "campeonato - confronto": o pedaço com " x " é o confronto
@@ -105,6 +122,9 @@ export function readEventInfoFromBuffer(buffer: Buffer): EventInfo {
   } else if (/\s+x\s+/i.test(transmissao)) {
     match = transmissao;
   }
+  // Rodada dupla ("A x B / C x D"): busca pelo 1º jogo — o evento do portal
+  // tem o nome com os dois jogos, então o 1º já identifica.
+  if (match.includes("/")) match = match.split("/")[0].trim();
 
   // "13_08_2026 - UM17" → "13/08/2026"
   const dataRaw = findLabeled(rows, /Data[^:]*:\s*([0-9][0-9_.\/-]+)/i);
